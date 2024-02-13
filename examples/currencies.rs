@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rust_moysklad::{Assortment, MoySkladApiClient};
+use rust_moysklad::{Currency, MoySkladApiClient};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -11,10 +11,10 @@ async fn main() -> Result<()> {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
-    let assortment = client.get_all::<Assortment>().await?;
-    if let Some(last) = assortment.last() {
-        dbg!(last);
+    let currencies = client.get_all::<Currency>().await?;
+    if let Some(last) = currencies.last() {
+        let last_currency = client.get::<Currency>(last.id).await?;
+        dbg!(last_currency);
     }
-    dbg!(assortment.len());
     Ok(())
 }

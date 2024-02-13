@@ -5,6 +5,8 @@ use crate::{
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
+use super::{deserialize_option_date_from_str, Attribute, Characteristic, PriceType};
+
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Assortment {
@@ -14,7 +16,7 @@ pub struct Assortment {
     pub owner: Option<MetaWrapper>,
     pub shared: Option<bool>,
     pub group: Option<MetaWrapper>,
-    #[serde(deserialize_with = "deserialize_date_from_str")]
+    #[serde(deserialize_with = "deserialize_option_date_from_str")]
     pub updated: Option<NaiveDateTime>,
     pub name: Option<String>,
     pub code: Option<String>,
@@ -78,15 +80,6 @@ pub struct SalePrice {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PriceType {
-    pub meta: Meta,
-    pub id: String,
-    pub name: String,
-    pub external_code: String,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BuyPrice {
     pub value: f64,
     pub currency: MetaWrapper,
@@ -96,66 +89,4 @@ pub struct BuyPrice {
 #[serde(rename_all = "camelCase")]
 pub struct Barcode {
     pub ean13: String,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Characteristic {
-    pub meta: Meta,
-    pub id: String,
-    pub name: String,
-    pub value: String,
-}
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Attribute {
-    SimpleAttribute(SimpleAttribute),
-    CustomAttribute(CustomAttribute),
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CustomAttribute {
-    pub meta: Meta,
-    pub id: uuid::Uuid,
-    pub name: String,
-    #[serde(rename = "type")]
-    pub attribute_type: AttributeType,
-    pub value: AttributeValue,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SimpleAttribute {
-    pub meta: Meta,
-    pub id: uuid::Uuid,
-    pub name: String,
-    #[serde(rename = "type")]
-    pub r#type: AttributeType,
-    pub value: String,
-}
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AttributeValue {
-    pub meta: Meta,
-    pub name: String,
-}
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum AttributeType {
-    #[default]
-    String,
-    Customentity,
-}
-fn deserialize_date_from_str<'de, D>(deserializer: D) -> Result<Option<NaiveDateTime>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let date_str = Option::<String>::deserialize(deserializer)?;
-    match date_str {
-        Some(str) => NaiveDateTime::parse_from_str(&str, "%Y-%m-%d %H:%M:%S%.3f")
-            .map(|dt| Some(dt))
-            .map_err(serde::de::Error::custom),
-        None => Ok(None),
-    }
 }
