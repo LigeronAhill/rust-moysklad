@@ -6,7 +6,6 @@
 
 ### [productfolder.rs](https://github.com/LigeronAhill/rust-moysklad/examples/productfolder.rs)
 
-Данный пример демонстрирует создание продуктовой папки, добавление продукта в эту папку и обновление информации о продукте.
 
 ```rust
 use anyhow::Result;
