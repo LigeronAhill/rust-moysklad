@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use uuid::Uuid;
 
-use crate::models::EntityResponse;
+use crate::{
+    models::{CustomEntity, EntityResponse, Meta},
+    PriceType,
+};
 /// initialize api client
 ///
 /// # Example
@@ -779,6 +782,49 @@ impl MoySkladApiClient {
             }
         }
         Ok(result)
+    }
+    pub async fn get_price_types(&self) -> Result<Vec<PriceType>> {
+        let uri = "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype";
+        static APP_USER_AGENT: &str =
+            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        let client = reqwest::Client::builder()
+            .user_agent(APP_USER_AGENT)
+            .gzip(true)
+            .build()?;
+        let result: Vec<PriceType> = client
+            .get(uri)
+            .bearer_auth(&self.token)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(result)
+    }
+    pub async fn get_custom_entities(&self, customentity_meta: &Meta) -> Result<Vec<CustomEntity>> {
+        let path = customentity_meta.href.clone();
+        let id_vec = path.split('/').collect::<Vec<&str>>();
+        let id = id_vec
+            .last()
+            .ok_or(anyhow::Error::msg("error getting dictionary id"))?;
+        let uri = format!("https://api.moysklad.ru/api/remap/1.2/entity/customentity/{id}");
+        static APP_USER_AGENT: &str =
+            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        let client = reqwest::Client::builder()
+            .user_agent(APP_USER_AGENT)
+            .gzip(true)
+            .build()?;
+        let response = client.get(uri).bearer_auth(&self.token).send().await?;
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let res: EntityResponse<CustomEntity> = response.json().await?;
+                Ok(res.rows)
+            }
+            _ => {
+                let err_res: serde_json::Value = response.json().await?;
+                let msg = format!("{err_res:#?}\n");
+                Err(anyhow::Error::msg(msg))
+            }
+        }
     }
 }
 /// Доступные операторы для фильтрации
