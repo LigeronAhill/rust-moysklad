@@ -6,7 +6,10 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
-    models::{CustomEntity, EntityResponse, Meta},
+    models::{
+        characteristic::{CharResponse, VariantCharacteristic},
+        CustomEntity, EntityResponse, Meta,
+    },
     PriceType,
 };
 /// initialize api client
@@ -820,6 +823,28 @@ impl MoySkladApiClient {
             reqwest::StatusCode::OK => {
                 let res: EntityResponse<CustomEntity> = response.json().await?;
                 Ok(res.rows)
+            }
+            _ => {
+                let err_res: serde_json::Value = response.json().await?;
+                let msg = format!("{err_res:#?}\n");
+                Err(anyhow::Error::msg(msg))
+            }
+        }
+    }
+    /// Характеристики модификаций
+    pub async fn get_variants_characteristics(&self) -> Result<Vec<VariantCharacteristic>> {
+        let uri = format!("https://api.moysklad.ru/api/remap/1.2/entity/variant/metadata");
+        static APP_USER_AGENT: &str =
+            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        let client = reqwest::Client::builder()
+            .user_agent(APP_USER_AGENT)
+            .gzip(true)
+            .build()?;
+        let response = client.get(uri).bearer_auth(&self.token).send().await?;
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let res: CharResponse = response.json().await?;
+                Ok(res.characteristics)
             }
             _ => {
                 let err_res: serde_json::Value = response.json().await?;

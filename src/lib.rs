@@ -7,6 +7,7 @@ mod models;
 pub use api_client::{FilterOperator, MoySkladApiClient};
 pub use models::{
     assortment::Assortment,
+    characteristic::Characteristic,
     counterparty::{CompanyType, Counterparty, Sex},
     country::Country,
     currency::Currency,
@@ -14,5 +15,6 @@ pub use models::{
     product_folder::ProductFolder,
     region::Region,
     uom::Uom,
+    variant::Variant,
     Attribute, AttributeValue, CustomValue, PriceType, ProductsCustomField, TaxSystem,
 };

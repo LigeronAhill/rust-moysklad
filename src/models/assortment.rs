@@ -5,7 +5,9 @@ use crate::{
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-use super::{deserialize_option_date_from_str, Attribute, Characteristic, PriceType};
+use super::{
+    characteristic::Characteristic, deserialize_option_date_from_str, Attribute, PriceType,
+};
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

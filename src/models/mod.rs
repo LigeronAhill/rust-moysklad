@@ -5,6 +5,7 @@ use serde_with::skip_serializing_none;
 use crate::api_client::MsEntity;
 
 pub mod assortment;
+pub mod characteristic;
 pub mod counterparty;
 pub mod country;
 pub mod currency;
@@ -12,6 +13,7 @@ pub mod product;
 pub mod product_folder;
 pub mod region;
 pub mod uom;
+pub mod variant;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,7 +21,7 @@ pub struct Meta {
     pub href: String,
     pub metadata_href: Option<String>,
     #[serde(rename = "type")]
-    pub meta_type: String,
+    pub meta_type: Option<String>,
     pub media_type: String,
     pub uuid_href: Option<String>,
     pub download_href: Option<String>,
@@ -79,14 +81,6 @@ where
             .map_err(serde::de::Error::custom),
         None => Ok(None),
     }
-}
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Characteristic {
-    pub meta: Meta,
-    pub id: String,
-    pub name: String,
-    pub value: String,
 }
 /// Дополнительные поля
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
