@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rust_moysklad::{
     Attribute, AttributeValue, Country, Currency, CustomValue, MoySkladApiClient, Product,
-    ProductFolder, ProductsCustomField, Region, Uom,
+    ProductFolder, ProductsCustomField, Uom,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[tokio::main]

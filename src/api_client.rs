@@ -783,6 +783,7 @@ impl MoySkladApiClient {
         }
         Ok(result)
     }
+    /// Типы цен
     pub async fn get_price_types(&self) -> Result<Vec<PriceType>> {
         let uri = "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype";
         static APP_USER_AGENT: &str =
@@ -800,6 +801,7 @@ impl MoySkladApiClient {
             .await?;
         Ok(result)
     }
+    /// Получить элементы справочника
     pub async fn get_custom_entities(&self, customentity_meta: &Meta) -> Result<Vec<CustomEntity>> {
         let path = customentity_meta.href.clone();
         let id_vec = path.split('/').collect::<Vec<&str>>();

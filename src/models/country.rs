@@ -5,6 +5,8 @@ use crate::api_client::MsEntity;
 
 use super::{deserialize_date_from_str, Meta, MetaWrapper};
 
+/// Страны
+/// Средствами JSON API можно создавать и обновлять сведения о Странах, запрашивать списки Стран и сведения по отдельным Странам. Кодом сущности для Страны в составе JSON API является ключевое слово country.
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Country {

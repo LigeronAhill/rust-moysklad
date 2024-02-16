@@ -6,12 +6,12 @@ use crate::api_client::MsEntity;
 
 pub mod assortment;
 pub mod counterparty;
+pub mod country;
 pub mod currency;
 pub mod product;
 pub mod product_folder;
 pub mod region;
 pub mod uom;
-pub mod country;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,6 +88,7 @@ pub struct Characteristic {
     pub name: String,
     pub value: String,
 }
+/// Дополнительные поля
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductsCustomField {
