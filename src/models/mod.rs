@@ -77,7 +77,7 @@ where
     let date_str = Option::<String>::deserialize(deserializer)?;
     match date_str {
         Some(str) => NaiveDateTime::parse_from_str(&str, "%Y-%m-%d %H:%M:%S%.3f")
-            .map(|dt| Some(dt))
+            .map(Some)
             .map_err(serde::de::Error::custom),
         None => Ok(None),
     }

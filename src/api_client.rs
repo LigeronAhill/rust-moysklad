@@ -37,7 +37,7 @@ use crate::{
 ///     Ok(())
 /// }
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MoySkladApiClient {
     token: String,
 }
@@ -751,7 +751,7 @@ impl MoySkladApiClient {
         let limit = 1000;
         let mut offset = 0;
         let mut result = Vec::new();
-        let search_string = format!("{}{}{}", field.into(), operator.to_string(), value.into());
+        let search_string = format!("{}{}{}", field.into(), operator, value.into());
         loop {
             let response = client
                 .get(E::url())
@@ -833,7 +833,7 @@ impl MoySkladApiClient {
     }
     /// Характеристики модификаций
     pub async fn get_variants_characteristics(&self) -> Result<Vec<VariantCharacteristic>> {
-        let uri = format!("https://api.moysklad.ru/api/remap/1.2/entity/variant/metadata");
+        let uri = "https://api.moysklad.ru/api/remap/1.2/entity/variant/metadata";
         static APP_USER_AGENT: &str =
             concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
         let client = reqwest::Client::builder()
