@@ -4,6 +4,7 @@ description = "Framework for moy sklad"
 license = "MIT"
 readme = "README.md"
 authors = ["Aleksandr Provotorov <provotorov@inbox.ru>"]
+repository = "https://github.com/LigeronAhill/rust-moysklad/"
 version = "0.1.0"
 edition = "2021"
 
