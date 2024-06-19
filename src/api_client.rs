@@ -101,7 +101,7 @@ impl MoySkladApiClient {
         let mut offset = 0;
         let mut result = Vec::new();
         loop {
-            let uri = format!("https://api.moysklad.ru/api/remap/1.2/entity/product?limit={limit}&offset={offset}");
+            let uri = format!("{}?limit={limit}&offset={offset}", E::url());
             let response = client
                 .get(&uri)
                 .bearer_auth(&self.token)
@@ -109,12 +109,18 @@ impl MoySkladApiClient {
                 .await?;
             match response.status() {
                 reqwest::StatusCode::OK => {
-                    let res: EntityResponse<E> = response.json().await?;
-                    if res.rows.is_empty() {
-                        break;
+                    // let res: EntityResponse<E> = response.json().await?;
+                    let val: serde_json::Value = response.json().await?;
+                    if let Ok(res) = serde_json::from_value::<EntityResponse<E>>(val.clone()) {
+                        if res.rows.is_empty() {
+                            break;
+                        } else {
+                            result.extend(res.rows);
+                            offset += limit;
+                        }
                     } else {
-                        result.extend(res.rows);
-                        offset += limit;
+                        let msg = format!("{val:#?}\n");
+                        return Err(anyhow::Error::msg(msg));
                     }
                 }
                 _ => {
