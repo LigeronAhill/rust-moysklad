@@ -97,14 +97,14 @@ impl MoySkladApiClient {
             .user_agent(APP_USER_AGENT)
             .gzip(true)
             .build()?;
-        let limit = 1000;
+        let limit = 500;
         let mut offset = 0;
         let mut result = Vec::new();
         loop {
+            let uri = format!("https://api.moysklad.ru/api/remap/1.2/entity/product?limit={limit}&offset={offset}");
             let response = client
-                .get(E::url())
+                .get(&uri)
                 .bearer_auth(&self.token)
-                .query(&[(limit, offset)])
                 .send()
                 .await?;
             match response.status() {
@@ -114,11 +114,6 @@ impl MoySkladApiClient {
                         break;
                     } else {
                         result.extend(res.rows);
-                        if let Some(size) = res.meta.size {
-                            if limit + offset > size {
-                                break;
-                            }
-                        }
                         offset += limit;
                     }
                 }
