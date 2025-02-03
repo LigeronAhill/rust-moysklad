@@ -63,6 +63,25 @@ impl MoySkladApiClient {
         let token = std::env::var("MS_TOKEN")?;
         Ok(Self { token })
     }
+    /// initialize api client
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use anyhow::Result;
+    /// use rust_moysklad::MoySkladApiClient;
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let token = std::env::var("MS_TOKEN")?;
+    ///     let client = MoySkladApiClient::new(token)?;
+    ///     //...do something...
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn new(token: impl AsRef<str>) -> Result<Self> {
+        let token = token.as_ref().to_owned();
+        Ok(Self { token })
+    }
     /// retrieve list of entity
     ///
     /// # Example
@@ -102,11 +121,7 @@ impl MoySkladApiClient {
         let mut result = Vec::new();
         loop {
             let uri = format!("{}?limit={limit}&offset={offset}", E::url());
-            let response = client
-                .get(&uri)
-                .bearer_auth(&self.token)
-                .send()
-                .await?;
+            let response = client.get(&uri).bearer_auth(&self.token).send().await?;
             match response.status() {
                 reqwest::StatusCode::OK => {
                     // let res: EntityResponse<E> = response.json().await?;
