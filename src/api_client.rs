@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use uuid::Uuid;
@@ -12,6 +12,7 @@ use crate::{
     },
     PriceType,
 };
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 /// initialize api client
 ///
 /// # Example
@@ -40,6 +41,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct MoySkladApiClient {
     token: String,
+    client: reqwest::Client,
 }
 pub trait MsEntity: for<'a> Deserialize<'a> + Serialize + Clone + Debug {
     fn url() -> String;
@@ -61,7 +63,11 @@ impl MoySkladApiClient {
     /// ```
     pub fn from_env() -> Result<Self> {
         let token = std::env::var("MS_TOKEN")?;
-        Ok(Self { token })
+        let client = reqwest::Client::builder()
+            .user_agent(APP_USER_AGENT)
+            .gzip(true)
+            .build()?;
+        Ok(Self { token, client })
     }
     /// initialize api client
     ///
@@ -80,7 +86,11 @@ impl MoySkladApiClient {
     /// ```
     pub fn new(token: impl AsRef<str>) -> Result<Self> {
         let token = token.as_ref().to_owned();
-        Ok(Self { token })
+        let client = reqwest::Client::builder()
+            .user_agent(APP_USER_AGENT)
+            .gzip(true)
+            .build()?;
+        Ok(Self { token, client })
     }
     /// retrieve list of entity
     ///
@@ -110,18 +120,17 @@ impl MoySkladApiClient {
     where
         E: MsEntity,
     {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
         let limit = 500;
         let mut offset = 0;
         let mut result = Vec::new();
         loop {
             let uri = format!("{}?limit={limit}&offset={offset}", E::url());
-            let response = client.get(&uri).bearer_auth(&self.token).send().await?;
+            let response = self
+                .client
+                .get(&uri)
+                .bearer_auth(&self.token)
+                .send()
+                .await?;
             match response.status() {
                 reqwest::StatusCode::OK => {
                     // let res: EntityResponse<E> = response.json().await?;
@@ -146,6 +155,85 @@ impl MoySkladApiClient {
             }
         }
         Ok(result)
+    }
+
+    /// list entities with limit, offset and optional search
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use rust_moysklad::{MoySkladApiClient, Product};
+    /// use tracing::info;
+    /// #[tokio::main]
+    /// async fn main() -> anyhow::Result<()> {
+    ///     tracing_subscriber::fmt().init();
+    ///     info!("Requesting products");
+    ///     let client = MoySkladApiClient::from_env().expect("MS_TOKEN env var not set!");
+    ///     let search_string = "carolus";
+    ///     let search_result = client.list::<Product>(30, 0, Some(search_string)).await?;
+    ///     info!(
+    ///         "Got {size} results of search for '{search_string}'",
+    ///         size = search_result.meta.size.unwrap_or_default()
+    ///     );
+    ///     if let Some(first_product) = search_result.rows.first() {
+    ///         info!("First founded:");
+    ///         info!(
+    ///             "Name: '{name}'",
+    ///             name = first_product
+    ///                 .name
+    ///                 .as_ref()
+    ///                 .unwrap_or(&String::from("NoName"))
+    ///         );
+    ///         let price = first_product
+    ///             .sale_prices
+    ///             .first()
+    ///             .map(|p| p.value)
+    ///             .unwrap_or_default()
+    ///             / 100.;
+    ///         info!("Price: {price:.2}")
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    #[instrument(name = "list entities", skip(self))]
+    pub async fn list<E>(
+        &self,
+        limit: u16,
+        offset: u16,
+        search: Option<impl AsRef<str> + Debug>,
+    ) -> Result<EntityResponse<E>>
+    where
+        E: MsEntity,
+    {
+        if limit == 0 || limit > 1000 || offset > 1000 {
+            return Err(anyhow!("Wrong arguments"));
+        }
+        let uri = if let Some(search_string) = search.map(|s| s.as_ref().to_lowercase()) {
+            format!(
+                "{}?limit={limit}&offset={offset}&search={search_string}",
+                E::url()
+            )
+        } else {
+            format!("{}?limit={limit}&offset={offset}", E::url())
+        };
+        let response = self
+            .client
+            .get(&uri)
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let res: EntityResponse<E> = response.json().await?;
+                Ok(res)
+            }
+            _ => {
+                let err_res: serde_json::Value = response.json().await?;
+                let msg = format!("{err_res:#?}\n");
+                Err(anyhow::Error::msg(msg))
+            }
+        }
     }
     /// get entity
     ///
@@ -178,14 +266,13 @@ impl MoySkladApiClient {
     where
         E: MsEntity,
     {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
         let uri = format!("{}/{id}", E::url());
-        let response = client.get(&uri).bearer_auth(&self.token).send().await?;
+        let response = self
+            .client
+            .get(&uri)
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
         match response.status() {
             reqwest::StatusCode::OK => {
                 let res: E = response.json().await?;
@@ -261,13 +348,14 @@ impl MoySkladApiClient {
         E: MsEntity,
         C: Serialize + Debug,
     {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
-        let response = client
+        // static APP_USER_AGENT: &str =
+        //     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        // let client = reqwest::Client::builder()
+        //     .user_agent(APP_USER_AGENT)
+        //     .gzip(true)
+        //     .build()?;
+        let response = self
+            .client
             .post(E::url())
             .json(&object)
             .bearer_auth(&self.token)
@@ -348,14 +436,15 @@ impl MoySkladApiClient {
         E: MsEntity,
         U: Debug + Serialize,
     {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
+        // static APP_USER_AGENT: &str =
+        //     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        // let client = reqwest::Client::builder()
+        //     .user_agent(APP_USER_AGENT)
+        //     .gzip(true)
+        //     .build()?;
         let uri = format!("{}/{id}", E::url());
-        let response = client
+        let response = self
+            .client
             .put(&uri)
             .bearer_auth(&self.token)
             .json(&object)
@@ -435,14 +524,19 @@ impl MoySkladApiClient {
     where
         E: MsEntity,
     {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
+        // static APP_USER_AGENT: &str =
+        //     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        // let client = reqwest::Client::builder()
+        //     .user_agent(APP_USER_AGENT)
+        //     .gzip(true)
+        //     .build()?;
         let uri = format!("{}/{id}", E::url());
-        let response = client.delete(&uri).bearer_auth(&self.token).send().await?;
+        let response = self
+            .client
+            .delete(&uri)
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
         match response.status() {
             reqwest::StatusCode::OK => Ok(()),
             _ => {
@@ -516,13 +610,14 @@ impl MoySkladApiClient {
         E: MsEntity,
         C: Serialize + Debug,
     {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
-        let response = client
+        // static APP_USER_AGENT: &str =
+        //     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        // let client = reqwest::Client::builder()
+        //     .user_agent(APP_USER_AGENT)
+        //     .gzip(true)
+        //     .build()?;
+        let response = self
+            .client
             .post(E::url())
             .json(&objects)
             .bearer_auth(&self.token)
@@ -544,14 +639,15 @@ impl MoySkladApiClient {
     where
         E: MsEntity,
     {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
+        // static APP_USER_AGENT: &str =
+        //     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        // let client = reqwest::Client::builder()
+        //     .user_agent(APP_USER_AGENT)
+        //     .gzip(true)
+        //     .build()?;
         let uri = format!("{}/delete", E::url());
-        let response = client
+        let response = self
+            .client
             .post(&uri)
             .json(&objects)
             .bearer_auth(&self.token)
@@ -630,18 +726,19 @@ impl MoySkladApiClient {
     where
         E: MsEntity,
     {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
+        // static APP_USER_AGENT: &str =
+        //     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        // let client = reqwest::Client::builder()
+        //     .user_agent(APP_USER_AGENT)
+        //     .gzip(true)
+        //     .build()?;
         let limit = 1000;
         let mut offset = 0;
         let mut result = Vec::new();
         let search_string: String = search_string.into();
         loop {
-            let response = client
+            let response = self
+                .client
                 .get(E::url())
                 .bearer_auth(&self.token)
                 .query(&[
@@ -758,18 +855,19 @@ impl MoySkladApiClient {
     where
         E: MsEntity,
     {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
+        // static APP_USER_AGENT: &str =
+        //     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        // let client = reqwest::Client::builder()
+        //     .user_agent(APP_USER_AGENT)
+        //     .gzip(true)
+        //     .build()?;
         let limit = 1000;
         let mut offset = 0;
         let mut result = Vec::new();
         let search_string = format!("{}{}{}", field.into(), operator, value.into());
         loop {
-            let response = client
+            let response = self
+                .client
                 .get(E::url())
                 .bearer_auth(&self.token)
                 .query(&[
@@ -805,13 +903,14 @@ impl MoySkladApiClient {
     /// Типы цен
     pub async fn get_price_types(&self) -> Result<Vec<PriceType>> {
         let uri = "https://api.moysklad.ru/api/remap/1.2/context/companysettings/pricetype";
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
-        let result: Vec<PriceType> = client
+        // static APP_USER_AGENT: &str =
+        //     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        // let client = reqwest::Client::builder()
+        //     .user_agent(APP_USER_AGENT)
+        //     .gzip(true)
+        //     .build()?;
+        let result: Vec<PriceType> = self
+            .client
             .get(uri)
             .bearer_auth(&self.token)
             .send()
@@ -850,13 +949,13 @@ impl MoySkladApiClient {
     /// Характеристики модификаций
     pub async fn get_variants_characteristics(&self) -> Result<Vec<VariantCharacteristic>> {
         let uri = "https://api.moysklad.ru/api/remap/1.2/entity/variant/metadata";
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-        let client = reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
-            .gzip(true)
-            .build()?;
-        let response = client.get(uri).bearer_auth(&self.token).send().await?;
+        // static APP_USER_AGENT: &str =
+        //     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+        // let client = reqwest::Client::builder()
+        //     .user_agent(APP_USER_AGENT)
+        //     .gzip(true)
+        //     .build()?;
+        let response = self.client.get(uri).bearer_auth(&self.token).send().await?;
         match response.status() {
             reqwest::StatusCode::OK => {
                 let res: CharResponse = response.json().await?;
